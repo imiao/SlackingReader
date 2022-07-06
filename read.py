@@ -59,10 +59,11 @@ class MRead:
                 if txt_file not in self.files.keys():
                     self.files[txt_file] = 1
         if len(txtlist) == 0:
-            messagebox.showerror("错误", "同级目录下未找到txt文件")
+            messagebox.showerror("错误 Error", "同级目录下未找到txt文件。\nNo txt in this dir.")
             exit(0)
         if len(self.config["now"]) == 0:
             self.now = list(self.files.keys())[0]
+            self.config["now"] = self.now
         else:
             self.now = self.config["now"]
         self.nowVar.set(self.now)
@@ -72,7 +73,7 @@ class MRead:
     def save_config(self):
         self.files[self.now] = self.linenum
         with open('./config.json', 'w', encoding="utf-8") as f:
-            json.dump(self.config, f, indent=4)
+            json.dump(self.config, f, indent=4, ensure_ascii=False)
 
     def set_up(self):
         # 初始化显示在屏幕中央
@@ -132,9 +133,9 @@ class MRead:
         for f in self.files.keys():
             select_file_menu.add_radiobutton(
                 label=f, variable=self.nowVar, value=f, command=self.select_file)
-        self.menu.add_cascade(label="选择", menu=select_file_menu)
-        self.menu.add_command(label="跳转", command=self.change_line)
-        self.menu.add_command(label="退出", command=self.key_exit)
+        self.menu.add_cascade(label="选择 Books", menu=select_file_menu)
+        self.menu.add_command(label="跳转 Skip", command=self.change_line)
+        self.menu.add_command(label="退出 Exit", command=self.key_exit)
         self.tk.bind("<Button-3>", self.show_menu)
 
     def select_file(self):
@@ -145,7 +146,7 @@ class MRead:
             self.load_book()
 
     def change_line(self):
-        linenum = simpledialog.askinteger("跳转", "请输入想要跳转的行数:",
+        linenum = simpledialog.askinteger("跳转 Skip", "请输入想要跳转的行数 Input linenum:",
             initialvalue=self.linenum, minvalue=1)
         if linenum is not None:
             self.linenum = linenum

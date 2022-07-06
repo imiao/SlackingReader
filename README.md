@@ -1,16 +1,26 @@
-# 放松阅读 SlackingReader
+# 放松阅读 
 
-简单的桌面txt阅读器，基于tkinter开发。
+中文 | [English](./README-en.md)
 
-Simple txt reader for dektop, developed base on tkinter.
+简单的桌面txt阅读器，基于tkinter开发。适合桌面阅读小说，可完美融入多数背景。
+
+## 软件界面
+
+![avatar](./imgs/demo.jpg)
 
 ## 使用方式
 
-1. 下载read.py和config.json至txt文件所在目录。
+1. 下载 `read.py` 和 `config.json` 至txt文件所在目录。
 
 2. 打开cmd执行 `python read.py`
 
-3. 操作说明：
+或者
+
+1. 下载 `read.exe` 和 `config.json` 至txt文件所在目录。
+
+2. 双击执行 `read.exe`
+
+## 操作说明
 
 | 快捷键 | 说明 |
 | ------ | ------ |
