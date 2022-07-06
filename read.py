@@ -145,9 +145,11 @@ class MRead:
             self.load_book()
 
     def change_line(self):
-        self.linenum = simpledialog.askinteger("跳转", "请输入想要跳转的行数:",
+        linenum = simpledialog.askinteger("跳转", "请输入想要跳转的行数:",
             initialvalue=self.linenum, minvalue=1)
-        self.next_line()
+        if linenum is not None:
+            self.linenum = linenum
+            self.next_line()
 
     def save_last(self, event):
         self.lastClickX = event.x
