@@ -16,6 +16,138 @@ ctypes.windll.shcore.SetProcessDpiAwareness(1)
 ScaleFactor = ctypes.windll.shcore.GetScaleFactorForDevice(0)
 
 
+class SkipDialog(simpledialog.Dialog):
+    '''自定义跳转弹出框'''
+
+    def __init__(self, title, prompt, filename,
+                 initialvalue=None,
+                 minvalue=None, maxvalue=None,
+                 parent=None):
+
+        self.prompt = prompt
+        self.filename = filename
+        self.file_chapters = filename.replace(".txt", "_chapters.json")
+        self.minvalue = minvalue
+        self.maxvalue = maxvalue
+
+        self.initialvalue = initialvalue
+
+        self.chapterListVar = StringVar()
+        self.chapters = {}
+        if os.path.exists(self.file_chapters):
+            with open(self.file_chapters, 'r', encoding="utf-8") as f:
+                self.chapters = json.load(f)
+        else:
+            self.makeTitleList()
+        self.chapterListVar.set(" ".join(self.chapters.keys()))
+
+        simpledialog.Dialog.__init__(self, parent, title)
+
+    def destroy(self):
+        if not os.path.exists(self.file_chapters):
+            with open(self.file_chapters, 'w', encoding="utf-8") as f:
+                json.dump(self.chapters, f, ensure_ascii=False)
+        self.entry = None
+        simpledialog.Dialog.destroy(self)
+
+    def makeTitleList(self):
+        '''生成章节列表'''
+        lines = linecache.getlines(self.filename)
+        for i in range(len(lines)):
+            line = lines[i].strip()
+            if line != "" and "第" in line and "章" in line:
+                line = line.replace("\n", "").replace(" ", "").replace("=", "")
+                if len(line) < 30:
+                    self.chapters[line] = i + 1
+
+    def selectTitle(self, event):
+        '''选择章节'''
+        cur = self.listbox.get(self.listbox.curselection())
+        self.entry.delete(0, END)
+        self.entry.insert(0, self.chapters[cur])
+
+    def getNear(self, value):
+        '''找到当前行数最近章节'''
+        keys = list(self.chapters.keys())
+        for i in range(1, len(keys)):
+            if value < self.chapters[keys[i]]:
+                return i - 1
+
+    def body(self, master):
+        near = self.getNear(self.initialvalue)
+        frame = Frame(master)
+        sbar = Scrollbar(frame)
+        sbar.pack(side=RIGHT, fill=Y)
+        self.listbox = Listbox(
+            frame, width=40, listvariable=self.chapterListVar, yscrollcommand=sbar)
+        self.listbox.pack()
+        sbar.config(command=self.listbox.yview)
+        self.listbox.see(near)
+        self.listbox.bind('<Double-Button-1>', self.selectTitle)
+        frame.grid(row=0, rowspan=2, column=0, padx=5, sticky=W)
+
+        w = Label(master, text=self.prompt, justify=LEFT)
+        w.grid(row=0, column=1, padx=5, sticky=W)
+
+        self.entry = Entry(master, name="entry")
+        self.entry.grid(row=1, column=1, padx=5, sticky=W+E)
+
+        if self.initialvalue is not None:
+            self.entry.insert(0, self.initialvalue)
+            self.entry.select_range(0, END)
+
+        return self.entry
+
+    def buttonbox(self):
+
+        box = Frame(self)
+
+        w = Button(box, text="确定", width=10, command=self.ok, default=ACTIVE)
+        w.pack(side=LEFT, padx=5, pady=5)
+        w = Button(box, text="取消", width=10, command=self.cancel)
+        w.pack(side=LEFT, padx=5, pady=5)
+
+        self.bind("<Return>", self.ok)
+        self.bind("<Escape>", self.cancel)
+
+        box.pack()
+
+    def getresult(self):
+        return self.getint(self.entry.get())
+
+    def validate(self):
+        try:
+            result = self.getresult()
+        except ValueError:
+            messagebox.showwarning(
+                "麻烦敲个数字",
+                parent=self
+            )
+            return 0
+
+        if self.minvalue is not None and result < self.minvalue:
+            messagebox.showwarning(
+                "错误",
+                "最小值 %s "
+                "重新试试吧" % self.minvalue,
+                parent=self
+            )
+            return 0
+
+        if self.maxvalue is not None and result > self.maxvalue:
+            messagebox.showwarning(
+                "错误",
+                "最大值 %s "
+                "重新试试吧" % self.maxvalue,
+                parent=self
+            )
+            return 0
+
+        self.result = result
+
+        return 1
+
+
 # 获取屏幕上某个坐标的颜色
 def get_color(x, y):
     hdc = ctypes.windll.user32.GetDC(None)
@@ -33,6 +165,7 @@ class MRead:
         self.nowVar = StringVar()
         self.text = StringVar()
         self.hide = False
+        self.listen_wheel = True
         # 加载配置文件
         self.load_config()
         # 程序初始化
@@ -59,13 +192,19 @@ class MRead:
                 if txt_file not in self.files.keys():
                     self.files[txt_file] = 1
         if len(txtlist) == 0:
-            messagebox.showerror("错误 Error", "同级目录下未找到txt文件。\nNo txt in this dir.")
+            messagebox.showerror(
+                "错误", "同级目录下未找到txt文件。")
             exit(0)
-        if len(self.config["now"]) == 0:
+        # 删除不存在的文件
+        for kfile in list(self.files):
+            if kfile not in txtlist:
+                self.files.pop(kfile)
+                
+        self.now = self.config["now"]
+        if len(self.now) == 0 or self.now not in txtlist:
             self.now = list(self.files.keys())[0]
             self.config["now"] = self.now
-        else:
-            self.now = self.config["now"]
+
         self.nowVar.set(self.now)
         self.linenum = self.files[self.now]
         self.save_config()
@@ -132,10 +271,10 @@ class MRead:
         select_file_menu = Menu(self.tk, tearoff=False)
         for f in self.files.keys():
             select_file_menu.add_radiobutton(
-                label=f, variable=self.nowVar, value=f, command=self.select_file)
-        self.menu.add_cascade(label="选择 Books", menu=select_file_menu)
-        self.menu.add_command(label="跳转 Skip", command=self.change_line)
-        self.menu.add_command(label="退出 Exit", command=self.key_exit)
+                label=f,  variable=self.nowVar, value=f, command=self.select_file)
+        self.menu.add_cascade(label="选择",  menu=select_file_menu)
+        self.menu.add_command(label="跳转",  command=self.change_line)
+        self.menu.add_command(label="退出",  command=self.key_exit)
         self.tk.bind("<Button-3>", self.show_menu)
 
     def select_file(self):
@@ -146,8 +285,11 @@ class MRead:
             self.load_book()
 
     def change_line(self):
-        linenum = simpledialog.askinteger("跳转 Skip", "请输入想要跳转的行数 Input linenum:",
-            initialvalue=self.linenum, minvalue=1)
+        self.listen_wheel = False
+        skip = SkipDialog("跳转", "请输入想要跳转的行数:", self.nowVar.get(),
+                          initialvalue=self.linenum, minvalue=1)
+        self.listen_wheel = True
+        linenum = skip.result
         if linenum is not None:
             self.linenum = linenum
             self.next_line()
@@ -187,11 +329,11 @@ class MRead:
 
     def key_left(self):
         while True:
-            if self.linenum > 0:
-                self.linenum -= 1
-                if self.next_line():
-                    break
-            break
+            if self.linenum <= 0:
+                break
+            self.linenum -= 1
+            if self.next_line():
+                break
 
     def key_right(self):
         while True:
@@ -200,7 +342,7 @@ class MRead:
                 break
 
     def key_wheel(self, event):
-        if not self.hide and isinstance(event, mouse.WheelEvent):
+        if self.listen_wheel and not self.hide and isinstance(event, mouse.WheelEvent):
             if event.delta > 0:
                 self.key_left()
             elif event.delta < 0:
@@ -212,12 +354,12 @@ class MRead:
         # 空内容直接跳过
         if line.strip() == "":
             return FALSE
+        self.text.set(line)
         # 调整窗口和文本大小一致
         self.height = math.ceil(
             len(line)*(self.font_px+1) / self.width)*(self.font_px+6)
         self.tk.geometry("%dx%d" %
                          (self.width, self.height))
-        self.text.set(line)
         return True
 
     def key_exit(self):
